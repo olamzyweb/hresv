@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register - HRest</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 flex items-center justify-center min-h-screen px-4">
+  <div class="bg-white shadow rounded-lg p-6 w-full max-w-md">
+    <h1 class="text-xl font-semibold mb-4">Create account</h1>
+    <form id="regForm" class="space-y-3">
+      <input type="hidden" name="csrf_token" id="csrfToken">
+      <div>
+        <label class="text-sm block mb-1">Name</label>
+        <input name="name" class="w-full border rounded px-3 py-2" required>
+      </div>
+      <div>
+        <label class="text-sm block mb-1">Email</label>
+        <input name="email" type="email" class="w-full border rounded px-3 py-2" required>
+      </div>
+      <div>
+        <label class="text-sm block mb-1">Password</label>
+        <input name="password" type="password" class="w-full border rounded px-3 py-2" required minlength="8">
+      </div>
+      <button class="w-full bg-emerald-600 text-white py-2 rounded">Register</button>
+    </form>
+    <p class="text-sm text-slate-600 mt-3">Already have an account? <a href="login.html" class="text-blue-600">Login</a></p>
+    <div id="msg" class="text-sm text-emerald-700 mt-3"></div>
+  </div>
+  <script>
+    if (!localStorage.getItem('csrf')) {
+      fetch('/api/csrf.php').then(r => r.json()).then(b => localStorage.setItem('csrf', b.token));
+    }
+    document.getElementById('csrfToken').value = localStorage.getItem('csrf') || '';
+    document.getElementById('regForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target).entries());
+      const res = await fetch('/api/auth/register.php', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+      const body = await res.json();
+      document.getElementById('msg').textContent = body.message || body.error || 'Check email for verification.';
+    });
+  </script>
+</body>
+</html>
+

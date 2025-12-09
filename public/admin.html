@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - HRest</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen">
+  <header class="bg-white shadow">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="font-bold text-xl">Admin Dashboard</div>
+      <nav class="text-sm space-x-3">
+        <a href="/" class="text-blue-600">Public site</a>
+      </nav>
+    </div>
+  </header>
+  <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <section class="bg-white rounded-lg shadow p-4">
+      <h2 class="text-lg font-semibold mb-3">KPIs</h2>
+      <div id="kpis" class="grid md:grid-cols-3 gap-3 text-sm"></div>
+    </section>
+    <section class="bg-white rounded-lg shadow p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold">Bookings</h2>
+        <select id="statusFilter" class="border rounded px-2 py-1 text-sm">
+          <option value="">All</option>
+          <option value="pending">Pending</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="checked_in">Checked-in</option>
+          <option value="checked_out">Checked-out</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead><tr class="text-left border-b"><th class="p-2">Ref</th><th class="p-2">Guest</th><th class="p-2">Room</th><th class="p-2">Dates</th><th class="p-2">Status</th><th class="p-2">Payment</th><th class="p-2"></th></tr></thead>
+          <tbody id="bookingTable"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <script>
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (user.role !== 'admin') {
+      alert('Admin only');
+      window.location = '/login.html';
+    }
+    if (!localStorage.getItem('csrf')) {
+      fetch('/api/csrf.php').then(r => r.json()).then(b => localStorage.setItem('csrf', b.token));
+    }
+    const csrf = localStorage.getItem('csrf') || '';
+    const bookingTable = document.getElementById('bookingTable');
+    const statusFilter = document.getElementById('statusFilter');
+
+    statusFilter.addEventListener('change', loadBookings);
+    loadBookings();
+    loadKpis();
+
+    async function loadBookings() {
+      const url = '/api/admin/bookings.php' + (statusFilter.value ? '?status=' + statusFilter.value : '');
+      const res = await fetch(url);
+      const body = await res.json();
+      bookingTable.innerHTML = '';
+      (body.data || []).forEach(b => {
+        const tr = document.createElement('tr');
+        tr.className = 'border-b';
+        tr.innerHTML = `
+          <td class="p-2">${b.booking_ref}</td>
+          <td class="p-2">${b.guest_name}</td>
+          <td class="p-2">${b.room_number} / ${b.room_type}</td>
+          <td class="p-2">${b.checkin_date} → ${b.checkout_date}</td>
+          <td class="p-2">${b.status}</td>
+          <td class="p-2">${b.payment_status}</td>
+          <td class="p-2">
+            <select data-id="${b.id}" class="statusSelect border rounded px-2 py-1 text-xs">
+              ${['pending','confirmed','checked_in','checked_out','cancelled'].map(s => `<option ${s===b.status?'selected':''}>${s}</option>`).join('')}
+            </select>
+          </td>`;
+        bookingTable.appendChild(tr);
+      });
+      document.querySelectorAll('.statusSelect').forEach(sel => {
+        sel.addEventListener('change', async (e) => {
+          const id = e.target.dataset.id;
+          await fetch('/api/admin/bookings/status.php?id=' + id, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status: e.target.value, csrf_token: csrf})});
+          loadBookings();
+        });
+      });
+    }
+
+    async function loadKpis() {
+      const today = new Date().toISOString().slice(0,10);
+      const to = new Date();
+      to.setDate(to.getDate() + 30);
+      const toStr = to.toISOString().slice(0,10);
+      const res = await fetch(`/api/admin/reports/occupancy.php?from=${today}&to=${toStr}`);
+      const body = await res.json();
+      const kpis = body.data || {};
+      document.getElementById('kpis').innerHTML = `
+        <div class="p-3 bg-slate-50 rounded border">Revenue: $${kpis.revenue || 0}</div>
+        <div class="p-3 bg-slate-50 rounded border">Occupancy: ${kpis.occupancy_rate || 0}%</div>
+        <div class="p-3 bg-slate-50 rounded border">ADR: $${kpis.adr || 0}</div>
+      `;
+    }
+  </script>
+</body>
+</html>
+

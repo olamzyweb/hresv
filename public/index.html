@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HRest Hotel</title>
+  <link href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <header class="bg-white shadow">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="font-bold text-xl">HRest Hotel</div>
+      <nav class="space-x-4 text-sm">
+        <a href="#rooms" class="hover:text-blue-600">Rooms</a>
+        <a href="login.html" class="hover:text-blue-600">Login</a>
+        <a href="admin.html" class="hover:text-blue-600">Admin</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-8">
+    <section class="bg-white rounded-lg shadow p-6 mb-8">
+      <h1 class="text-2xl font-semibold mb-4">Find a room</h1>
+      <form id="searchForm" class="grid md:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">Check-in</label>
+          <input id="checkin" name="checkin" class="w-full border rounded px-3 py-2" placeholder="YYYY-MM-DD" required>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Check-out</label>
+          <input id="checkout" name="checkout" class="w-full border rounded px-3 py-2" placeholder="YYYY-MM-DD" required>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Guests</label>
+          <input id="guests" name="guests" type="number" min="1" value="2" class="w-full border rounded px-3 py-2">
+        </div>
+        <div class="flex items-end">
+          <button class="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Search</button>
+        </div>
+      </form>
+      <p id="searchMsg" class="text-sm mt-3 text-slate-600"></p>
+    </section>
+
+    <section id="rooms" class="grid md:grid-cols-3 gap-4"></section>
+  </main>
+
+  <template id="roomCard">
+    <article class="bg-white rounded-lg shadow p-4 flex flex-col">
+      <div class="h-40 bg-slate-200 rounded mb-3"></div>
+      <h3 class="text-lg font-semibold"></h3>
+      <p class="text-sm text-slate-600 flex-1"></p>
+      <div class="mt-3 flex items-center justify-between">
+        <span class="font-semibold"></span>
+        <button class="bg-emerald-600 text-white px-3 py-1 rounded text-sm bookBtn">Book</button>
+      </div>
+    </article>
+  </template>
+
+  <div id="toast" class="fixed bottom-4 right-4 bg-gray-900 text-white px-4 py-2 rounded shadow hidden"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script>
+    flatpickr("#checkin", { dateFormat: "Y-m-d" });
+    flatpickr("#checkout", { dateFormat: "Y-m-d" });
+    fetch('/api/csrf.php').then(r => r.json()).then(b => localStorage.setItem('csrf', b.token));
+
+    const roomsEl = document.getElementById('rooms');
+    const toast = (msg) => {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 3000);
+    };
+
+    document.getElementById('searchForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const params = new URLSearchParams(new FormData(e.target));
+      const res = await fetch('/api/availability.php?' + params.toString());
+      const body = await res.json();
+      roomsEl.innerHTML = '';
+      if (!body.data || body.data.length === 0) {
+        document.getElementById('searchMsg').textContent = 'No rooms available.';
+        return;
+      }
+      document.getElementById('searchMsg').textContent = '';
+      const tpl = document.getElementById('roomCard').content;
+      body.data.forEach(room => {
+        const node = tpl.cloneNode(true);
+        node.querySelector('h3').textContent = room.title + ' #' + room.room_id;
+        node.querySelector('p').textContent = room.description || 'Comfortable room.';
+        node.querySelector('span').textContent = '$' + room.base_price + ' / night';
+        node.querySelector('.bookBtn').addEventListener('click', () => startBooking(room));
+        roomsEl.appendChild(node);
+      });
+    });
+
+    async function startBooking(room) {
+      const guestName = prompt('Guest name');
+      const guestEmail = prompt('Guest email');
+      if (!guestName || !guestEmail) return;
+      const payload = {
+        room_id: room.room_id,
+        room_type_id: room.room_type_id,
+        guest_name: guestName,
+        guest_email: guestEmail,
+        checkin_date: document.getElementById('checkin').value,
+        checkout_date: document.getElementById('checkout').value,
+        guests: document.getElementById('guests').value,
+        csrf_token: localStorage.getItem('csrf') || ''
+      };
+      const res = await fetch('/api/bookings/create.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const body = await res.json();
+      if (body.data) {
+        toast('Booked! Ref ' + body.data.booking_ref);
+      } else {
+        toast(body.error || 'Booking failed');
+      }
+    }
+  </script>
+</body>
+</html>
+

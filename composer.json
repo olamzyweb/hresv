@@ -1,0 +1,15 @@
+{
+  "name": "hrest/hotel-booking",
+  "description": "Simple PHP hotel booking demo with Tailwind UI and REST APIs.",
+  "type": "project",
+  "require": {
+    "phpmailer/phpmailer": "^6.8",
+    "vlucas/phpdotenv": "^5.6"
+  },
+  "autoload": {
+    "psr-4": {
+      "HRest\\": "lib/"
+    }
+  }
+}
+
